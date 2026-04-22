@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Imprimir QR — Climatización</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f3f7; padding: 20px; }
+
+    .top-bar {
+      background: #0C447C; color: white; padding: 14px 20px;
+      border-radius: 10px; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .top-bar h1 { font-size: 18px; font-weight: 600; }
+    .top-bar p { font-size: 13px; opacity: 0.8; margin-top: 3px; }
+    .btn-print {
+      background: white; color: #0C447C;
+      border: none; border-radius: 8px;
+      padding: 10px 22px; font-size: 14px; font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-print:hover { background: #E6F1FB; }
+
+    #status { text-align: center; padding: 40px; color: #5a6a7e; font-size: 15px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .qr-card {
+      background: white;
+      border: 1px solid #dde4ec;
+      border-radius: 10px;
+      padding: 12px 10px 10px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .qr-card .qr-wrap { display: flex; align-items: center; justify-content: center; }
+    .qr-card .codigo {
+      font-size: 11px; font-weight: 700;
+      color: #0C447C; text-align: center;
+      letter-spacing: 0.04em;
+    }
+    .qr-card .nombre {
+      font-size: 9px; color: #5a6a7e;
+      text-align: center; line-height: 1.4;
+    }
+    .qr-card .centro {
+      font-size: 8px; color: #9aabb8;
+      text-align: center;
+      background: #f0f3f7;
+      padding: 2px 8px; border-radius: 10px;
+    }
+
+    @media print {
+      body { background: white; padding: 6mm; }
+      .top-bar { display: none; }
+      #status { display: none; }
+      .grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6mm;
+      }
+      .qr-card {
+        border: 0.5px solid #ccc;
+        border-radius: 4mm;
+        padding: 4mm;
+        gap: 2mm;
+      }
+      .qr-card .codigo { font-size: 8pt; }
+      .qr-card .nombre { font-size: 6pt; }
+      .qr-card .centro { font-size: 5.5pt; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div>
+    <h1>Códigos QR — Climatización</h1>
+    <p id="count-label">Cargando equipos...</p>
+  </div>
+  <button class="btn-print" onclick="window.print()">🖨️ Imprimir</button>
+</div>
+
+<div id="status">Cargando equipos desde Google Sheets...</div>
+<div class="grid" id="grid"></div>
+
+<script>
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSr1VKDo1h6b20UiPCXl-8DcRPvxfKY2c-iEK3XMkpxbAnp2gbW1lrt2EYnq2nwlflp2-vPr65zSzD1/pub?gid=1920435577&single=true&output=csv';
+const BASE_URL = 'https://igyomee.github.io/Clima-Fichas/fichas_clima.html';
+
+Papa.parse(SHEET_URL, {
+  download: true,
+  skipEmptyLines: true,
+  complete: function(results) {
+    const rows = results.data;
+    const equipos = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const codigo = (r[8] || '').toString().trim();
+      if (!codigo) continue;
+      equipos.push({
+        codigo: codigo,
+        nombre: (r[9] || '').toString().trim(),
+        centro: (r[0] || '').toString().trim(),
+      });
+    }
+
+    document.getElementById('status').style.display = 'none';
+    document.getElementById('count-label').textContent = equipos.length + ' equipos encontrados';
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+
+    equipos.forEach(function(eq) {
+      const card = document.createElement('div');
+      card.className = 'qr-card';
+
+      const qrWrap = document.createElement('div');
+      qrWrap.className = 'qr-wrap';
+      const qrDiv = document.createElement('div');
+      qrWrap.appendChild(qrDiv);
+      card.appendChild(qrWrap);
+
+      const codigoEl = document.createElement('div');
+      codigoEl.className = 'codigo';
+      codigoEl.textContent = eq.codigo;
+      card.appendChild(codigoEl);
+
+      if (eq.nombre) {
+        const nombreEl = document.createElement('div');
+        nombreEl.className = 'nombre';
+        nombreEl.textContent = eq.nombre;
+        card.appendChild(nombreEl);
+      }
+
+      if (eq.centro) {
+        const centroEl = document.createElement('div');
+        centroEl.className = 'centro';
+        centroEl.textContent = eq.centro;
+        card.appendChild(centroEl);
+      }
+
+      grid.appendChild(card);
+
+      try {
+        new QRCode(qrDiv, {
+          text: BASE_URL + '#' + eq.codigo,
+          width: 100, height: 100,
+          colorDark: '#0C447C',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch(e) { console.error(e); }
+    });
+  },
+  error: function() {
+    document.getElementById('status').textContent = 'Error al cargar los datos. Comprueba la conexión.';
+  }
+});
+</script>
+</body>
+</html>
